@@ -1,0 +1,254 @@
+
+
+```{r}
+## Dataset 1: Spotify
+
+library(tidyverse)
+
+# Load Spotify dataset from TidyTuesday
+spotify <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv")
+
+library(dplyr)
+
+# Count number of songs in each playlist genre
+playlist_genre_count <- spotify %>%
+  group_by(playlist_genre) %>%
+  summarise(count=n())
+
+playlist_genre_count
+
+# Mean danceability, loudness, and energy by playlist genre
+spotify %>% group_by(playlist_genre) %>%
+  summarize(mean_danceability = mean(danceability, na.rm = TRUE),
+            mean_loudness = mean(loudness, na.rm = TRUE),
+            mean_energy = mean(energy, na.rm = TRUE)
+  )
+
+# Scatterplot of danceability vs. loudness
+ggplot(spotify, aes(x = loudness, y = danceability)) +
+  geom_point()
+
+# Scatterplot of danceability vs. energy
+ggplot(spotify, aes(x = energy, y = danceability)) +
+  geom_point()
+
+# Scatterplot of danceability across playlist genres
+ggplot(spotify, aes(x = playlist_genre, y = danceability)) +
+  geom_point()
+
+# Check variable type for danceability (should be numeric/continuous)
+class(spotify$danceability)
+
+# Fit linear regression model for danceability using loudness, energy,
+# playlist genre, and the loudness × energy interaction
+m1 <- glm(danceability ~ loudness + energy + playlist_genre + loudness:energy,
+         data = spotify)
+# Display model summary
+summary(m1)
+
+# Load diagnostic packages
+library(glmtoolbox)
+library(classpackage)
+library(devtools)
+
+# Check ANOVA assumptions for the linear model (normality, homoscedasticity, linearity)
+anova_check(m1)
+
+# Identify influential observations using Cook's distance
+cooks(m1)
+
+# Check multicollinearity among predictors using Variance Inflation Factors (VIF)
+car::vif(m1)
+
+## Dataset 2: Single Mother Households
+
+# Load childcare cost dataset from TidyTuesday
+childcare_cost <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2023/2023-05-09/childcare_costs.csv')
+
+# Summary statistics for the number of single-mother households with children under 6
+summary(childcare_cost$h_under6_single_m)
+
+# Histogram to visualize the distribution of the outcome variable
+ggplot(childcare_cost, aes(x = h_under6_single_m)) +
+  geom_histogram(fill="blue", color="white")
+
+# Summary statistics for median household income (2018)
+summary(childcare_cost$mhi_2018)
+
+# Histogram to visualize the distribution of median household income
+ggplot(childcare_cost, aes(x = mhi_2018)) +
+  geom_histogram(fill = "blue", color = "white")
+
+# Summary statistics for the unemployment rate (age 16+)
+summary(childcare_cost$unr_16)
+
+# Histogram to visualize the distribution of unemployment rate
+ggplot(childcare_cost, aes(x = unr_16)) +
+  geom_histogram(fill = "blue", color = "white")
+
+# Summary statistics for the total number of households
+summary(childcare_cost$households)
+
+# Histogram to visualize the distribution of total households
+ggplot(childcare_cost, aes(x = households)) +
+  geom_histogram(fill = "blue", color = "white")
+
+# Check if the outcome variable is composed entirely of whole numbers (count data)
+all(childcare_cost$h_under6_single_m %% 1 == 0, na.rm = TRUE)
+# Check if the outcome variable is non-negative (required for count models)
+all(childcare_cost$h_under6_single_m >= 0, na.rm = TRUE)
+
+# Fit a Poisson regression model for the count of single-mother households
+# Predictors include median household income, unemployment rate,
+# total households, and the unemployment × households interaction
+m2 <- glm(
+  h_under6_single_m ~ mhi_2018 + unr_16 + households + unr_16:households,
+  family = "poisson",
+  data = childcare_cost
+)
+
+# Display model summary
+summary(m2)
+
+# Compare the mean and variance of the outcome to assess Poisson assumptions
+# (Poisson models assume mean ≈ variance)
+childcare_cost %>% summarise(mean(h_under6_single_m, na.rm = TRUE), var(h_under6_single_m, na.rm = TRUE))
+
+
+## Dataset 3: Scooby Doo 
+
+# Load Scooby Doo dataset from TidyTuesday
+scooby_doo <- read_csv(
+  "https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-07-13/scoobydoo.csv"
+)
+
+# Count how many episodes fall into each arrest outcome
+scooby_arrest <- scooby_doo %>%
+  group_by(arrested) %>%
+  summarise(count = n())
+
+# Display counts for each possible arrested response
+scooby_arrest
+
+# Count snack occurrences for Fred
+fred_snacks <- scooby_doo %>%
+  count(snack_fred)
+fred_snacks
+
+# Count snack occurrences for Daphne
+daphnie_snacks <- scooby_doo %>%
+  count(snack_daphnie)
+daphnie_snacks
+
+# Count snack occurrences for Velma
+velma_snacks <- scooby_doo %>%
+  count(snack_velma)
+velma_snacks
+
+# Count snack occurrences for Shaggy
+shaggy_snacks <- scooby_doo %>%
+  count(snack_shaggy)
+shaggy_snacks
+
+# Count snack occurrences for Scooby
+scooby_snacks <- scooby_doo %>%
+  count(snack_scooby)
+scooby_snacks
+
+# Count how many episodes fall into each possible 'zoinks' value
+scooby_zoinks <- scooby_doo %>%
+  group_by(zoinks) %>%
+  summarise(count = n())
+
+# Display counts for each zoinks outcome
+scooby_zoinks
+
+# Create a cleaned binary arrest variable:
+# 1 = culprit arrested, 0 = not arrested, NA = responses not of interest
+scooby_doo_clean <- scooby_doo %>%
+  mutate(arrested_clean = if_else(arrested == "TRUE",1,
+                      if_else(arrested == "FALSE",0,NA))
+         )
+
+# Count how many episodes fall into each cleaned arrest category
+scooby_doo_clean %>% count(arrested_clean)
+
+# Recode all snack variables to numeric:
+# 1 = snack consumed, 0 = no snack, NA = missing/other
+scooby_doo_clean <- scooby_doo_clean %>%
+  mutate(across(c(snack_fred, snack_daphnie, snack_velma, snack_shaggy, snack_scooby),
+              ~ case_when(. == "TRUE" ~ 1L,
+                          . == "FALSE" ~ 0L,
+                          TRUE ~ NA_integer_))) %>%
+# Create a single indicator for whether ANY snack was consumed in the episode
+ mutate(snack_any = if_else(
+    snack_fred == 1L | snack_daphnie == 1L |
+    snack_velma == 1L | snack_shaggy == 1L |
+    snack_scooby == 1L, 
+    1L, 0L,missing = NA_integer_
+  ))
+
+# Count how many episodes had any snack consumption
+scooby_doo_clean %>% count(snack_any)
+
+# Clean the 'zoinks' variable:
+# Convert "NULL" strings to NA, then convert to integer
+scooby_doo_clean <- scooby_doo_clean %>% 
+  mutate(
+    zoinks_clean = na_if(zoinks, "NULL")
+  ) %>%
+  mutate(zoinks_clean = as.integer(zoinks_clean))
+  
+# Count how many episodes fall into each cleaned zoinks value
+scooby_doo_clean %>% count(zoinks_clean)
+
+# Count how many episodes include any snack consumption
+snack_any_consumed <- scooby_doo_clean %>%
+  group_by(snack_any) %>%
+  summarise(count = n())
+
+# Display the counts
+snack_any_consumed
+
+# Calculate the average number of times "zoinks" is said per episode
+mean(scooby_doo_clean$zoinks_clean, na.rm = TRUE)
+
+# Frequency table of the cleaned arrest variable (0 = no arrest, 1 = arrest)
+table(scooby_doo_clean$arrested_clean)
+
+# Save counts for plotting
+arrest_counts <- table(scooby_doo_clean$arrested_clean)
+
+# Bar plot to visualize the distribution of arrest outcomes
+barplot(
+  arrest_counts,
+  col = c("blue", "white"),
+  main = "Distribution of Arrest Outcomes",
+  xlab = "Arrested (0 = No, 1 = Yes)",
+  ylab = "Number of Episodes"
+)
+
+# Logistic regression model using the combined snack indicator + zoinks
+m3 <- glm(arrested_clean ~ snack_any + zoinks_clean,
+          data = scooby_doo_clean,
+          family = "binomial"(link="logit"))
+summary(m3)
+
+# Logistic regression model using individual snack variables + zoinks
+m4 <- glm(arrested_clean ~ snack_fred + snack_daphnie + snack_velma + snack_shaggy + snack_scooby + zoinks_clean,
+          data = scooby_doo_clean,
+          family = "binomial"(link="logit"))
+summary(m4)
+
+# Check the distribution of the binary outcome (required for logistic regression)
+table(scooby_doo_clean$arrested_clean)
+
+# Check multicollinearity among predictors using Variance Inflation Factors (VIF)
+car::vif(m4)
+
+```
+
+
+
+
+
