@@ -1,0 +1,158 @@
+
+
+```{r}
+# Regression Modeling Project
+# Author: Amanda Cain
+
+# -----------------------------------------
+# Model 1: Main Effects Model
+# -----------------------------------------
+# Description: This script models systolic blood pressure (SBP) as a function of 
+# age, education level, and BMI category using linear regression.
+# Note: Dataset not included due to Jackson Heart Study access restrictions.
+
+library(fastDummies)
+library(tidyverse)
+
+# Create dummy variables for categorical predictors
+JHS_data <- JHS_data %>%
+  dummy_cols(select_columns = c("HSgrad","BMI3cat"))
+
+# Fit linear regression model predicting SBP
+m1 <- glm(formula = sbp ~ age + HSgrad_0 + BMI3cat_0 + BMI3cat_1, data = JHS_data)
+# Display model summary
+summary(m1)
+
+# Compute 95% confidence intervals for regression coefficients
+confint(m1, level=0.95)
+
+# Assess overall model significance using the F-test (alpha = 0.05)
+
+# Prepare analysis dataset
+JHS_clean <- JHS_data %>%
+  select(sbp, age, HSgrad_0, BMI3cat_0, BMI3cat_1) %>%
+  na.omit()
+
+# Fit full model with all predictors
+full <- glm(sbp ~ age + HSgrad_0 + BMI3cat_0 + BMI3cat_1, data = JHS_clean, family = "gaussian")
+# Fit reduced model with intercept only
+reduced <- glm(sbp ~ 1, data = JHS_clean, family = "gaussian")
+# Perform F-test comparing reduced vs. full model
+anova(reduced, full, test = "F")
+
+
+# Evaluate the significance of each predictor using Type III ANOVA
+
+# Fit regression model with age, education, and BMI category
+m2 = glm(sbp ~ age + HSgrad + BMI3cat, data = JHS_data)
+
+# Type III ANOVA to assess global significance of each predictor
+car::Anova(m2, type = 3)
+
+
+# Identify suspected outliers using standardized residuals
+
+# Flag observations with |standardized residual| > 2.5
+JHS_data_outliers <- JHS_clean %>%
+  mutate(outlier = if_else(abs(rstandard(m1))>2.5, "Suspected", "Not Suspected"))
+
+# Count suspected vs. non-suspected outliers
+JHS_data_outliers %>% count(outlier)
+
+# Identify suspected outliers using standardized residuals
+
+# Flag observations with |standardized residual| > 2.5
+JHS_data_outliers <- JHS_clean %>%
+  mutate(outlier = if_else(abs(rstandard(m1)) > 2.5,
+                           "Suspected", "Not Suspected"))
+
+# Count suspected vs. non-suspected outliers
+JHS_data_outliers %>% 
+  count(outlier)
+
+# Assess multicollinearity using Variance Inflation Factors (VIF)
+car::vif(m1)
+
+# Assess linear model assumptions using diagnostic plots
+
+# Residuals vs Fitted (linearity & homoscedasticity)
+plot(m1, which = 1)
+
+# Normal Q-Q plot (normality of residuals)
+plot(m1, which = 2)
+
+# Scale-Location plot (constant variance)
+plot(m1, which = 3)
+
+# Residuals vs Leverage (influential points)
+plot(m1, which = 5)
+
+
+c1 <- coefficients(m1)
+
+
+# Create predicted SBP values for each BMI category using model coefficients
+JHS_data <- JHS_data %>% 
+  mutate(p_bmi0 = c1["(Intercept)"] + c1["age"]*age  + c1["BMI3cat_0"]*1 + c1["BMI3cat_1"]*0,
+         p_bmi1 = c1["(Intercept)"] + c1["age"]*age  + c1["BMI3cat_0"]*0 + c1["BMI3cat_1"]*1,
+         p_bmi2 = c1["(Intercept)"] + c1["age"]*age  + c1["BMI3cat_0"]*0 + c1["BMI3cat_1"]*0)
+
+# Visualize observed SBP and predicted lines by BMI category
+JHS_data %>%
+  ggplot(aes(x = age, y = sbp)) +
+  geom_point(aes(color = factor(HSgrad_0))) +
+  scale_color_manual(name = "Education level",
+    values = c("0" = "#999999", "1" = "#E69F00", "NA" = "#F0E442"),
+    labels = c("0" = "No HS Diploma", "1" = "HS Graduate", "NA" = "Missing")) +
+  geom_line(aes(y = p_bmi0), color = "red", size = 1) +
+  annotate("text", x = 30, y = 200, label = "Poor Health BMI", size = 4, color = "red") +
+  geom_line(aes(y = p_bmi1), color = "green", size = 1) +
+  annotate("text", x = 33, y = 195, label = "Intermediate Health BMI", size = 4, color = "green") +
+  geom_line(aes(y = p_bmi2), color = "blue", size = 1) +
+  annotate("text", x = 30, y = 190, label = "Ideal Health BMI", size = 4, color = "blue") +
+  scale_y_continuous(limits = c(100, 200)) +
+  labs(x = "Age(years)",
+       y = "Systolic Blood Pressure(mmHg)") +
+  theme_bw()
+
+# --------------------------------------------------
+# Model 2: Interaction Model
+# --------------------------------------------------
+# Linear model with BMI × age and BMI × education interactions
+m4 <- lm(sbp ~ age + HSgrad + BMI +
+          BMI:age + BMI:HSgrad,
+          data = JHS_data)
+# Model summary
+summary(m4)
+
+# Test significance of the BMI × age interaction using Type III ANOVA
+car::Anova(m4, type = 3)
+
+# Create predicted SBP values for selected BMI and education combinations
+JHS_data2 <- JHS_data %>%
+  mutate(bmi_32_hsgrad_0 = 103.23 + 0.55*age - 0.85*0,
+         bmi_32_hsgrad_1 = 103.23 + 0.55*age - 0.85*1,
+         bmi_25_hsgrad_0 = 97 + 0.62*age - 1.27*0,
+         bmi_25_hsgrad_1 = 97 + 0.62*age - 1.27*1)
+
+# Visualize observed SBP with predicted lines for BMI × education combinations
+JHS_data2 %>% ggplot(aes(x = age, y = sbp)) +
+  geom_point(aes(color = factor(HSgrad_0))) +
+  scale_color_manual(name = "Education level",
+    values = c("0" = "#999999", "1" = "#E69F00", "NA" = "#F0E442"),
+    labels = c("0" = "No HS Diploma", "1" = "HS Graduate", "NA" = "Missing")) +
+  geom_line(aes(y = bmi_32_hsgrad_0), color = "red", size = 1) +
+  annotate("text", x = 29, y = 200, label = "BMI 32, No HSgrad", size = 4, color = "red") +
+  geom_line(aes(y = bmi_32_hsgrad_1), color = "green", size = 1) +
+  annotate("text", x = 28, y = 195, label = "BMI 32, HSgrad", size = 4, color = "green") +
+  geom_line(aes(y = bmi_25_hsgrad_0), color = "#8806CE", size = 1) +
+  annotate("text", x = 29, y = 190, label = "BMI 25, No HSgrad", size = 4, color = "#8806CE") +
+  geom_line(aes(y = bmi_25_hsgrad_1), color = "blue", size = 1) +
+  annotate("text", x = 28, y = 185, label = "BMI 25, HSgrad", size = 4, color = "blue") +
+    scale_y_continuous(limits = c(100, 200)) +
+  labs(x = "Age(years)",
+       y = "Systolic Blood Pressure(mmHg)") +
+  theme_classic()
+
+```
+
