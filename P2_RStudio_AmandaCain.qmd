@@ -1,0 +1,130 @@
+
+
+```{r}
+
+# Author: Amanda Cain
+# Note: Dataset not included due to Jackson Heart Study access restrictions.
+
+# Prepare variables for logistic regression
+JHS_data_1 <- JHS_data
+
+JHS_data_1$HTN <- factor(JHS_data_1$HTN, levels = c(0,1))
+JHS_data_1$hdl3cat <- factor(JHS_data_1$hdl3cat, levels = c(0,1,2))
+
+# Logistic regression model predicting diabetes status
+m1 <- glm(Diabetes ~ age + weight + HTN + hdl3cat,
+          data = JHS_data_1,
+          family = binomial(link="logit"))
+# Model summary
+summary(m1)
+
+# Test global significance of predictors in the logistic regression model
+car::Anova(m1, type = 3)
+
+# Compute odds ratios for logistic regression coefficients
+round(exp(coefficients(m1)),2)
+
+# Compute 95% confidence intervals for the odds ratios
+round(exp(confint(m1)),2)
+
+# Logistic regression model with HTN × HDL category interaction
+m3 <- glm(
+  Diabetes ~ age + weight + HTN + hdl3cat +
+    HTN:hdl3cat,
+  data = JHS_data_1,
+  family = binomial(link = "logit")
+)
+
+# Model summary
+summary(m3)
+
+# Test significance of the HTN × HDL category interaction
+car::Anova(m3, type = 3)
+
+# Compute odds ratios for selected model coefficients
+round(exp(c(-6.67, 0.04, 0.02, 1.28)), 2)
+
+# Compute predicted diabetes probabilities for selected HTN × HDL combinations
+median_age <- median(JHS_data_1$age, na.rm = TRUE)
+
+JHS_data2 <- JHS_data_1 %>%
+mutate(
+p_htn0_hdl3cat2 = exp(-6.679691 + 0.042171*median_age + 0.022406*weight + 0.612852*0)/ (1+exp(-6.679691 + 0.042171*median_age + 0.022406*weight + 0.612852*0)),
+p_htn1_hdl3cat2 = exp(-6.679691 + 0.042171*median_age + 0.022406*weight + 0.612852*1)/ (1+exp(-6.679691 + 0.042171*median_age + 0.022406*weight + 0.612852*1)),
+p_htn0_hdl3cat1 = exp(-6.725982 + 0.042171*median_age + 0.022406*weight + 0.810667*0)/ (1+exp(-6.725982 + 0.042171*median_age + 0.022406*weight + 0.810667*0)),
+p_htn1_hdl3cat1 = exp(-6.725982 + 0.042171*median_age + 0.022406*weight + 0.810667*1)/ (1+exp(-6.725982 + 0.042171*median_age + 0.022406*weight + 0.810667*1)),
+p_htn0_hdl3cat0 = exp(-6.670159 + 0.042171*median_age + 0.022406*weight + 1.284962*0)/ (1+exp(-6.670159 + 0.042171*median_age + 0.022406*weight + 1.284962*0)),
+p_htn1_hdl3cat0 = exp(-6.670159 + 0.042171*median_age + 0.022406*weight + 1.284962*1)/ (1+exp(-6.670159 + 0.042171*median_age + 0.022406*weight + 1.284962*1)))
+
+# Visualize observed diabetes status with predicted probability curves
+JHS_data2 %>% ggplot(aes(x = weight, y = Diabetes)) +
+  geom_point() +
+  geom_line(aes(y = p_htn0_hdl3cat2), color = "black", size = 2) + 
+  annotate("text", x = 65, y = 0.9, label = "Normotensive, High HDL", size = 4, color = "black") +
+  geom_line(aes(y = p_htn1_hdl3cat2), color = "purple", size = 1) +
+  annotate("text", x = 65, y = 0.8, label = "Hypertensive, High HDL", size = 4, color = "purple") +
+  geom_line(aes(y = p_htn0_hdl3cat1), color = "green", size = 1) +
+  annotate("text", x = 65, y = 0.7, label = "Normotensive, Normal HDL", size = 4, color = "green") +
+  geom_line(aes(y = p_htn1_hdl3cat1), color = "orange", size = 1) +
+  annotate("text", x = 65, y = 0.6, label = "Hypertensive, Normal HDL", size = 4, color = "orange") +
+  geom_line(aes(y = p_htn0_hdl3cat0), color = "red", size = 1) +
+  annotate("text", x = 65, y = 0.5, label = "Normotensive, Low HDL", size = 4, color = "red") +
+  geom_line(aes(y = p_htn1_hdl3cat0), color = "blue", size = 1) +
+  annotate("text", x = 65, y = 0.4, label = "Hypertensive, Low HDL", size = 4, color = "blue") +
+   labs(x = "Weight(kg)",
+       y = "Probablility of Diabetes") +
+   theme(
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray90")
+  )
+
+
+# Prepare variables for ordinal logistic regression
+JHS_data_1$diab3cat <- factor(JHS_data_1$diab3cat, levels = c(0,1,2), ordered = TRUE)
+JHS_data_1$HTN <- factor(JHS_data_1$HTN, levels = c(0,1))
+JHS_data_1$hdl3cat <- factor(JHS_data_1$hdl3cat, levels = c(0,1,2))
+
+# Ordinal logistic regression model predicting diabetes category
+m5 <- MASS::polr(diab3cat ~ age + weight + HTN + hdl3cat, data = JHS_data_1, Hess = TRUE)
+
+# Model summary
+summary(m5)
+
+# Test global significance of predictors in the ordinal logistic regression model
+car::Anova(m5, type = 3)
+
+# Compute odds ratios for ordinal logistic regression coefficients
+round(exp(coefficients(m5)), 2)
+
+# Compute 95% confidence intervals for the odds ratios
+round(exp(confint(m5)), 2)
+
+# Multinomial logistic regression model predicting diabetes category
+library(nnet)
+
+m7 <- multinom(
+  diab3cat ~ age + weight + HTN + hdl3cat,
+  data = JHS_data_1
+)
+
+# Model summary
+summary(m7)
+
+# Test global significance of predictors in the multinomial logistic regression model
+car::Anova(m7, type = 3)
+
+# Compute odds ratios for multinomial logistic regression coefficients
+round(exp(coefficients(m7)), 2)
+
+# Compute 95% confidence intervals for the odds ratios
+round(exp(confint(m7)), 2)
+
+# Brant test for the proportional odds assumption
+library(brant)
+brant(m5)
+
+
+```
+
+
+
