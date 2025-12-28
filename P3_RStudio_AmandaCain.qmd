@@ -1,0 +1,98 @@
+
+```{r}
+# Author: Amanda Cain
+# Note: Dataset not included due to Jackson Heart Study access restrictions.
+
+library(tidyverse)
+
+# Create count of non-ideal cardiovascular health indicators
+JHS_data1 <- JHS_data %>%
+  drop_na(idealHealthBP, idealHealthSMK, idealHealthDM, idealHealthNutrition,
+          idealHealthPA, idealHealthBMI, idealHealthChol, PrivatePublicIns, HSgrad) %>%
+  mutate(NotIdealRisk = 
+           (idealHealthBP == 0) +
+           (idealHealthSMK == 0) +
+           (idealHealthDM == 0) +
+           (idealHealthNutrition == 0) +
+           (idealHealthPA == 0) +
+           (idealHealthBMI == 0) +
+           (idealHealthChol == 0))
+
+# Prepare categorical predictors
+JHS_data1$PrivatePublicIns <- factor(JHS_data1$PrivatePublicIns, levels = c(0,1,2,3))
+JHS_data1$HSgrad <- factor(JHS_data1$HSgrad, levels = c(0,1))
+
+# Poisson regression model predicting number of non-ideal risk factors
+m1 <- glm(NotIdealRisk ~ age + PrivatePublicIns + HSgrad,
+          family = "poisson",
+          data = JHS_data1)
+
+# Model summary
+summary(m1)
+
+# Test global significance of predictors in the Poisson regression model
+car::Anova(m1, type = 3)
+
+# Incident rate ratios for Poisson regression coefficients
+round(exp(coef(m1)), 2)
+
+# 95% confidence intervals for the incident rate ratios
+round(exp(confint(m1)), 2)
+
+# Create predicted counts for selected combinations of HSgrad and insurance status
+JHS_data2 <- JHS_data1 %>% 
+  mutate(
+    HS0_PPI0 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*0 - 0.081022382*0 - 0.020944936*0),
+    HS0_PPI1 = exp(1.165788033 + 0.007979298*age - 0.059242822*1 - 0.026145519*0 - 0.081022382*0 - 0.020944936*0),
+    HS0_PPI2 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*1 - 0.081022382*0 - 0.020944936*0),
+    HS0_PPI3 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*0 - 0.081022382*1 - 0.020944936*0),
+    HS1_PPI0 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*0 - 0.081022382*0 - 0.020944936*1),
+    HS1_PPI1 = exp(1.165788033 + 0.007979298*age - 0.059242822*1 - 0.026145519*0 - 0.081022382*0 - 0.020944936*1),
+    HS1_PPI2 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*1 - 0.081022382*0 - 0.020944936*1),
+    HS1_PPI3 = exp(1.165788033 + 0.007979298*age - 0.059242822*0 - 0.026145519*0 - 0.081022382*1 - 0.020944936*1)
+  )
+
+# Visualization of observed counts with predicted lines
+ ggplot(JHS_data2,aes(x = age)) + 
+  geom_point(aes( y = NotIdealRisk), color = "gray") +
+  geom_line(aes(y = HS0_PPI0, color = "Uninsured", linetype = "No HS")) +
+  geom_line(aes(y = HS1_PPI0, color = "Uninsured", linetype = "HS Grad")) +
+  geom_line(aes(y = HS0_PPI1, color = "Private", linetype = "No HS")) +
+  geom_line(aes(y = HS1_PPI1, color = "Private", linetype = "HS Grad")) +
+  geom_line(aes(y = HS0_PPI2, color = "Public", linetype = "No HS")) +
+  geom_line(aes(y = HS1_PPI2, color = "Public", linetype = "HS Grad")) +
+  geom_line(aes(y = HS0_PPI3, color = "Private & Public", linetype = "No HS")) +
+  geom_line(aes(y = HS1_PPI3, color = "Private & Public", linetype = "HS Grad")) +
+  scale_color_manual(name = "Insurance",
+                     values = c("Uninsured" = "darkorange",
+                                "Private" = "green",
+                                "Public" = "blue",
+                                "Private & Public" = "red")) + 
+    scale_linetype_manual(name = "HighSchool Education",
+                          values = c("No HS" = "dashed",
+                                     "HS Grad" = "solid")) +
+   labs(x = "Age (years)",
+       y = "Count of Non-Idea Risk Factors") +
+      theme(
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray90")
+  ) +
+  theme(legend.position = "right")
+
+
+ # Negative binomial regression model predicting number of non-ideal risk factors
+m2 <- MASS::glm.nb(
+  NotIdealRisk ~ age + PrivatePublicIns + HSgrad,
+  data = JHS_data1
+)
+
+# Model summary
+summary(m2)
+
+# Check Poisson equidispersion assumption: mean should be approximately equal to variance
+JHS_data1 %>% summarise(mean(NotIdealRisk), var(NotIdealRisk))
+
+```
+
+
+
